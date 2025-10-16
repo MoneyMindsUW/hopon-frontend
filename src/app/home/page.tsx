@@ -62,7 +62,7 @@ export default function HomePage() {
               datetime={e.event_date || undefined}
               playersText={`${e.current_players}/${e.max_players} players`}
               distanceKm={e.distance_km}
-              hostName={e.host?.username}
+              hostName={e.host_user_id}
             />
           ))}
         </div>
