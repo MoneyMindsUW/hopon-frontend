@@ -73,7 +73,7 @@ export default function DiscoverPage() {
             rating={p.rating}
             bio={p.bio}
             location={p.location}
-            eventsCount={p.events_count}
+            eventsCount={p.eventsCount ?? 0}
             tags={p.sports}
           />
         ))}
