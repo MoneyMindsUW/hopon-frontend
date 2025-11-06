@@ -4,8 +4,8 @@ import WebLayout from "@/components/web-layout";
 import { EventCard } from "@/components/event-card";
 import { Api, type HopOnEvent } from "@/lib/api";
 import * as React from "react";
-import { CURRENT_USER } from "@/lib/current-user";
 import { FALLBACK_EVENTS } from "@/lib/fallback-data";
+import { useAuth } from "@/context/auth-context";
 
 export default function HomePage() {
   const [events, setEvents] = React.useState<HopOnEvent[]>([]);
@@ -18,16 +18,28 @@ export default function HomePage() {
   const [selectedSport, setSelectedSport] = React.useState<string>("All");
   const filterRef = React.useRef<HTMLDivElement | null>(null);
   const [hostedEvents, setHostedEvents] = React.useState<HopOnEvent[]>([]);
+  const { status, user, guestName, setGuestName, guestTokens, rememberGuestToken, clearGuestToken } =
+    useAuth();
 
   const loadData = React.useCallback(async () => {
     try {
-      const [nearby, mine] = await Promise.all([
-        Api.nearbyEvents(),
-        Api.myEvents(CURRENT_USER.id),
-      ]);
+      const nearby = await Api.nearbyEvents();
+      let joined: HopOnEvent[] = [];
+      let hosted: HopOnEvent[] = [];
+      if (status === "authenticated") {
+        const mine = await Api.myEvents();
+        joined = mine.joined || [];
+        hosted = mine.hosted || [];
+      }
       setEvents(nearby);
-      setJoinedEventIds((mine.joined || []).map((event) => event.id));
-      setHostedEvents(mine.hosted || []);
+      if (status === "authenticated") {
+        setJoinedEventIds(joined.map((event) => event.id));
+        setHostedEvents(hosted);
+      } else {
+        const guestJoinedIds = Object.keys(guestTokens).map((id) => Number(id));
+        setJoinedEventIds(guestJoinedIds);
+        setHostedEvents([]);
+      }
       setErrorMessage(null);
     } catch (error) {
       console.error("Failed to load events", error);
@@ -36,7 +48,7 @@ export default function HomePage() {
       setHostedEvents([]);
       setErrorMessage("Couldn't load events. Check your connection and try again.");
     }
-  }, []);
+  }, [guestTokens, status]);
 
   const availableSports = React.useMemo(() => {
     const sportsSource =
@@ -76,11 +88,35 @@ export default function HomePage() {
     }
     setPendingAction({ id: eventId, type: "join" });
     try {
-      await Api.joinEvent(eventId, {
-        user_id: CURRENT_USER.id,
-        player_name: CURRENT_USER.username,
-      });
-      await loadData();
+      if (status === "authenticated") {
+        await Api.joinEvent(eventId, {
+          player_name: user?.username,
+        });
+        await loadData();
+      } else {
+        let ensuredName = guestName;
+        if (!ensuredName && typeof window !== "undefined") {
+          const input = window.prompt("Enter your name so other players know who joined:");
+          ensuredName = input ? input.trim() : "";
+          if (ensuredName) {
+            setGuestName(ensuredName);
+          }
+        }
+        if (!ensuredName) {
+          return;
+        }
+        const existingToken = guestTokens[eventId];
+        const result = await Api.joinEvent(eventId, {
+          player_name: ensuredName,
+          guest_token: existingToken,
+        });
+        if (result.guest_token) {
+          rememberGuestToken(eventId, result.guest_token);
+        }
+        setJoinedEventIds((prev) => (prev.includes(eventId) ? prev : [...prev, eventId]));
+        const refreshed = await Api.nearbyEvents();
+        setEvents(refreshed);
+      }
     } catch (error) {
       console.error("Failed to join event", error);
       setErrorMessage("Unable to join this event right now. Please try again.");
@@ -95,8 +131,21 @@ export default function HomePage() {
     }
     setPendingAction({ id: eventId, type: "leave" });
     try {
-      await Api.leaveEvent(eventId, { user_id: CURRENT_USER.id });
-      await loadData();
+      if (status === "authenticated") {
+        await Api.leaveEvent(eventId, {});
+        await loadData();
+      } else {
+        const guestToken = guestTokens[eventId];
+        if (!guestToken) {
+          setErrorMessage("We couldn't verify your spot for this game. Try joining again to refresh access.");
+          return;
+        }
+        await Api.leaveEvent(eventId, { guest_token: guestToken });
+        clearGuestToken(eventId);
+        setJoinedEventIds((prev) => prev.filter((id) => id !== eventId));
+        const refreshed = await Api.nearbyEvents();
+        setEvents(refreshed);
+      }
     } catch (error) {
       console.error("Failed to leave event", error);
       setErrorMessage("Unable to leave this event right now. Please try again.");
@@ -223,6 +272,7 @@ export default function HomePage() {
                     playersText={`${event.current_players}/${event.max_players} players`}
                     distanceKm={event.distance_km}
                     hostName={event.host?.username}
+                    description={event.notes || undefined}
                     onRightActionClick={
                       joinedSet.has(event.id)
                         ? () => handleLeave(event.id)

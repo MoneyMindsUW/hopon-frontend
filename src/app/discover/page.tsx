@@ -6,10 +6,12 @@ import { EventCard } from "@/components/event-card";
 import { Search } from "lucide-react";
 import { Api, type HopOnEvent, type HopOnUser } from "@/lib/api";
 import { FALLBACK_EVENTS, FALLBACK_PLAYERS } from "@/lib/fallback-data";
+import { useAuth } from "@/context/auth-context";
 import * as React from "react";
 
 type PlayerDisplay = {
   id: string;
+  backendId?: number;
   name: string;
   handle: string;
   rating?: number;
@@ -32,6 +34,7 @@ type EventDisplay = {
   distanceKm?: number | null;
   hostName?: string | null;
   tagsLower: string[];
+  description?: string | null;
 };
 
 const DEFAULT_FILTER = "Nearby";
@@ -41,6 +44,9 @@ export default function DiscoverPage() {
   const [players, setPlayers] = React.useState<HopOnUser[]>([]);
   const [events, setEvents] = React.useState<HopOnEvent[]>([]);
   const [activeFilter, setActiveFilter] = React.useState(DEFAULT_FILTER);
+  const { status, user } = useAuth();
+  const isAuthenticated = status === "authenticated";
+  const [playerOverrides, setPlayerOverrides] = React.useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
     Api.playersNearby().then(setPlayers).catch(() => setPlayers([]));
@@ -52,42 +58,52 @@ export default function DiscoverPage() {
 
   const playerItems = React.useMemo<PlayerDisplay[]>(() => {
     const apiPlayers = players.map((player) => {
-      const sports = Array.isArray(player.sports)
-        ? player.sports.filter((sport): sport is string => Boolean(sport))
-        : [];
-      const tagsLower = sports.map((sport) => sport.toLowerCase());
-      return {
-        id: `api-player-${player.id}`,
-        name: player.username,
-        handle: player.username,
-        rating: typeof player.rating === "number" ? player.rating : undefined,
-        bio: player.bio,
-        location: player.location,
-        eventsCount: player.eventsCount ?? undefined,
-        tags: sports,
-        tagsLower,
-      };
-    });
+        const sports = Array.isArray(player.sports)
+          ? player.sports.filter((sport): sport is string => Boolean(sport))
+          : [];
+        const tagsLower = sports.map((sport) => sport.toLowerCase());
+        const eventsCount = player.eventsCount ?? player.events_count ?? undefined;
+        const isFollowing = Boolean(
+          player.is_following ?? player.isFollowing ?? false
+        );
+        return {
+          id: `api-player-${player.id}`,
+          backendId: player.id,
+          name: player.username,
+          handle: player.username,
+          rating: typeof player.rating === "number" ? player.rating : undefined,
+          bio: player.bio,
+          location: player.location,
+          eventsCount,
+          tags: sports,
+          tagsLower,
+          isFollowing,
+        };
+      });
 
-    const seenHandles = new Set(apiPlayers.map((player) => player.handle.toLowerCase()));
+      const seenHandles = new Set(apiPlayers.map((player) => player.handle.toLowerCase()));
 
     const fallbackPlayers = FALLBACK_PLAYERS.filter(
       (player) => !seenHandles.has(player.handle.toLowerCase())
-    ).map((player, index) => ({
-      id: `fallback-player-${index}`,
-      name: player.name,
-      handle: player.handle,
-      rating: player.rating,
-      bio: player.bio,
-      location: player.location,
-      eventsCount: player.eventsCount,
-      tags: player.tags,
-      tagsLower: player.tags.map((tag) => tag.toLowerCase()),
-      isFollowing: player.isFollowing,
-    }));
+        ).map((player, index) => ({
+          id: `fallback-player-${index}`,
+          backendId: undefined,
+          name: player.name,
+          handle: player.handle,
+          rating: player.rating,
+          bio: player.bio,
+          location: player.location,
+          eventsCount: player.eventsCount,
+          tags: player.tags,
+          tagsLower: player.tags.map((tag) => tag.toLowerCase()),
+          isFollowing: player.isFollowing ?? false,
+        }));
 
-    return [...apiPlayers, ...fallbackPlayers];
-  }, [players]);
+    return [...apiPlayers, ...fallbackPlayers].map((player) => ({
+      ...player,
+      isFollowing: playerOverrides[player.id] ?? player.isFollowing ?? false,
+    }));
+  }, [players, playerOverrides]);
 
   const eventItems = React.useMemo<EventDisplay[]>(() => {
     const seenTitles = new Set<string>();
@@ -106,6 +122,7 @@ export default function DiscoverPage() {
         playersText: `${event.current_players}/${event.max_players} players`,
         distanceKm: event.distance_km ?? undefined,
         hostName: event.host?.username ?? null,
+        description: event.notes ?? null,
         tagsLower: [event.sport.toLowerCase()],
       };
     });
@@ -122,6 +139,7 @@ export default function DiscoverPage() {
       playersText: event.playersText,
       distanceKm: event.distanceKm,
       hostName: event.hostName ?? null,
+      description: event.description ?? null,
       tagsLower: [event.sport.toLowerCase()],
     }));
 
@@ -205,6 +223,36 @@ export default function DiscoverPage() {
     });
   }, [eventItems, activeFilter, normalizedQuery]);
 
+  React.useEffect(() => {
+    setPlayerOverrides({});
+  }, [players]);
+
+  const handleFollowToggle = React.useCallback(
+    async (player: PlayerDisplay) => {
+      if (!player.backendId) {
+        return;
+      }
+      const currentlyFollowing = player.isFollowing ?? false;
+      if (isAuthenticated && user) {
+        try {
+          if (currentlyFollowing) {
+            await Api.unfollow(player.backendId, user.id);
+          } else {
+            await Api.follow(player.backendId, user.id);
+          }
+        } catch (error) {
+          console.error("Failed to toggle follow", error);
+          return;
+        }
+      }
+      setPlayerOverrides((prev) => ({
+        ...prev,
+        [player.id]: !currentlyFollowing,
+      }));
+    },
+    [isAuthenticated, user]
+  );
+
   return (
     <WebLayout title="Discover">
       <div className="relative">
@@ -260,6 +308,9 @@ export default function DiscoverPage() {
                   eventsCount={player.eventsCount}
                   tags={player.tags}
                   isFollowing={player.isFollowing}
+                  onToggleFollow={
+                    player.backendId ? () => handleFollowToggle(player) : undefined
+                  }
                 />
               ))}
             </div>
@@ -288,6 +339,7 @@ export default function DiscoverPage() {
                   playersText={event.playersText}
                   distanceKm={event.distanceKm ?? undefined}
                   hostName={event.hostName ?? undefined}
+                  description={event.description ?? undefined}
                   rightActionLabel="View"
                 />
               ))}

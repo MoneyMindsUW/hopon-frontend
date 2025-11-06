@@ -19,6 +19,7 @@ export type FallbackEvent = {
   playersText: string;
   distanceKm?: number;
   hostName?: string;
+  description?: string;
 };
 
 export const FALLBACK_EVENTS: Array<FallbackEvent> = [
@@ -32,6 +33,7 @@ export const FALLBACK_EVENTS: Array<FallbackEvent> = [
     playersText: "6/10 players",
     distanceKm: 0.8,
     hostName: "Alex Chen",
+    description: "Fast-paced half-court run—bring plenty of water and your favorite ball if you have one.",
   },
   {
     id: "fallback-run-crew",
@@ -43,6 +45,7 @@ export const FALLBACK_EVENTS: Array<FallbackEvent> = [
     playersText: "14/25 runners",
     distanceKm: 1.2,
     hostName: "Emily Carter",
+    description: "Casual sunrise jog along the waterfront with a coffee stop afterward; all paces welcome.",
   },
   {
     id: "fallback-tennis",
@@ -54,6 +57,7 @@ export const FALLBACK_EVENTS: Array<FallbackEvent> = [
     playersText: "3/4 players",
     distanceKm: 2.5,
     hostName: "Sarah Miller",
+    description: "Competitive doubles ladder under the lights; arrive ten minutes early for warm-ups.",
   },
   {
     id: "fallback-futsal",
@@ -65,6 +69,7 @@ export const FALLBACK_EVENTS: Array<FallbackEvent> = [
     playersText: "8/12 players",
     distanceKm: 3.1,
     hostName: "David Nguyen",
+    description: "Small-sided futsal with rotating keepers. Non-marking shoes required inside the gym.",
   },
 ];
 

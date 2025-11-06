@@ -26,6 +26,7 @@ export function UserCard({
   isFollowing,
   onToggleFollow,
 }: UserCardProps) {
+  const canToggleFollow = typeof onToggleFollow === "function";
   return (
     <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5">
       <div className="flex items-start gap-3">
@@ -39,11 +40,13 @@ export function UserCard({
               )}
             </div>
             <button
-              onClick={onToggleFollow}
+              type="button"
+              onClick={canToggleFollow ? onToggleFollow : undefined}
+              disabled={!canToggleFollow}
               className={
                 isFollowing
-                  ? "rounded-xl border border-neutral-700 px-4 py-1.5 text-sm font-medium text-neutral-200"
-                  : "rounded-xl border border-red-500/40 px-4 py-1.5 text-sm font-semibold text-red-400"
+                  ? "rounded-xl border border-neutral-700 px-4 py-1.5 text-sm font-medium text-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  : "rounded-xl border border-red-500/40 px-4 py-1.5 text-sm font-semibold text-red-400 disabled:cursor-not-allowed disabled:opacity-50"
               }
             >
               {isFollowing ? (
@@ -96,4 +99,3 @@ export function UserCard({
     </div>
   );
 }
-

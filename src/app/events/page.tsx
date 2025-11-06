@@ -4,7 +4,7 @@ import WebLayout from "@/components/web-layout";
 import { EventCard } from "@/components/event-card";
 import * as React from "react";
 import { Api, type HopOnEvent } from "@/lib/api";
-import { CURRENT_USER } from "@/lib/current-user";
+import { useAuth } from "@/context/auth-context";
 
 type TabKey = "joined" | "hosted";
 
@@ -13,18 +13,27 @@ export default function EventsPage() {
   const [joined, setJoined] = React.useState<HopOnEvent[]>([]);
   const [hosted, setHosted] = React.useState<HopOnEvent[]>([]);
   const [actionEventId, setActionEventId] = React.useState<number | null>(null);
+  const { status, guestTokens, clearGuestToken } = useAuth();
+  const isAuthenticated = status === "authenticated";
 
   const loadMyEvents = React.useCallback(async () => {
     try {
-      const res = await Api.myEvents(CURRENT_USER.id);
-      setJoined(res.joined || []);
-      setHosted(res.hosted || []);
+      if (isAuthenticated) {
+        const res = await Api.myEvents();
+        setJoined(res.joined || []);
+        setHosted(res.hosted || []);
+      } else {
+        const nearby = await Api.nearbyEvents();
+        const joinedIds = new Set(Object.keys(guestTokens).map((id) => Number(id)));
+        setJoined(nearby.filter((event) => joinedIds.has(event.id)));
+        setHosted([]);
+      }
     } catch (error) {
       console.error("Failed to load events", error);
       setJoined([]);
       setHosted([]);
     }
-  }, []);
+  }, [guestTokens, isAuthenticated]);
 
   React.useEffect(() => {
     void loadMyEvents();
@@ -36,7 +45,17 @@ export default function EventsPage() {
     }
     setActionEventId(eventId);
     try {
-      await Api.leaveEvent(eventId, { user_id: CURRENT_USER.id });
+      if (isAuthenticated) {
+        await Api.leaveEvent(eventId, {});
+      } else {
+        const token = guestTokens[eventId];
+        if (!token) {
+          console.warn("No guest token found for event", eventId);
+          return;
+        }
+        await Api.leaveEvent(eventId, { guest_token: token });
+        clearGuestToken(eventId);
+      }
       await loadMyEvents();
     } catch (error) {
       console.error("Failed to leave event", error);
@@ -52,6 +71,7 @@ export default function EventsPage() {
   ];
 
   const items = tab === "joined" ? joined : hosted;
+  const hasEvents = items.length > 0;
 
   return (
     <WebLayout title="My Events">
@@ -79,34 +99,27 @@ export default function EventsPage() {
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-6 rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5 text-center">
-        {stats.map((s) => (
-          <div key={s.label}>
-            <div className="text-3xl font-extrabold text-red-400">{s.value}</div>
-            <div className="text-sm text-neutral-300">{s.label}</div>
-          </div>
-        ))}
+        {stats.map((s) => {
+          const value =
+            s.label === "Upcoming"
+              ? hosted.length.toString()
+              : s.label === "Total Events"
+                ? (hosted.length + joined.length).toString()
+                : s.value;
+          return (
+            <div key={s.label}>
+              <div className="text-3xl font-extrabold text-red-400">{value}</div>
+              <div className="text-sm text-neutral-300">{s.label}</div>
+            </div>
+          );
+        })}
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 pb-8 lg:grid-cols-2">
-        {items.length === 0 && (
-          <>
-            <EventCard
-              title="Pickup Game"
-              sport="Basketball"
-              location="Central Park Courts"
-              datetime={new Date().toISOString()}
-              playersText="7/10"
-              rightActionLabel="Leave"
-            />
-            <EventCard
-              title="Singles Match"
-              sport="Tennis"
-              location="Riverside Tennis Club"
-              datetime={new Date(Date.now() + 24 * 3600 * 1000).toISOString()}
-              playersText="2/2"
-              rightActionLabel="Leave"
-            />
-          </>
+        {isAuthenticated && !hasEvents && (
+          <div className="col-span-full rounded-2xl border border-dashed border-neutral-800 bg-neutral-900/40 px-6 py-8 text-center text-sm text-neutral-400">
+            No events yet. Join a game or create one to see it here.
+          </div>
         )}
         {items.map((e) => {
           const isCurrent = actionEventId === e.id;
@@ -120,6 +133,7 @@ export default function EventsPage() {
               datetime={e.event_date || undefined}
               playersText={`${e.current_players}/${e.max_players}`}
               hostName={e.host?.username}
+              description={e.notes || undefined}
               rightActionLabel={
                 isJoinedTab
                   ? isCurrent
@@ -128,7 +142,7 @@ export default function EventsPage() {
                   : "View"
               }
               onRightActionClick={isJoinedTab ? () => handleLeave(e.id) : undefined}
-              disabled={isCurrent || (!isJoinedTab && true)}
+              disabled={isCurrent || !isJoinedTab}
             />
           );
         })}

@@ -13,6 +13,7 @@ export type EventCardProps = {
   playersText: string; // e.g. "6/10 players"
   distanceKm?: number | null;
   hostName?: string;
+  description?: string | null;
   onJoin?: () => void;
   statusColorClass?: string; // optional top-right color
   rightActionLabel?: string;
@@ -29,6 +30,7 @@ export function EventCard({
   playersText,
   distanceKm,
   hostName,
+  description,
   onJoin,
   rightActionLabel = "Join",
   onRightActionClick,
@@ -54,6 +56,15 @@ export function EventCard({
             {sport}
             {level ? <span> • {level}</span> : null}
           </p>
+          {description && (
+            <p className="mt-2 text-sm text-neutral-400">
+              {(() => {
+                const words = description.trim().split(/\s+/);
+                const preview = words.slice(0, 20).join(" ");
+                return words.length > 20 ? `${preview}…` : preview;
+              })()}
+            </p>
+          )}
           <div className="mt-4 space-y-2 text-neutral-300">
             <p className="flex items-center gap-2">
               <MapPin className="size-4 opacity-70" />{" "}
