@@ -41,16 +41,48 @@ export default function HomePage() {
 
         <div className="grid grid-cols-1 gap-4 pb-8 lg:grid-cols-2">
           {events.length === 0 && (
-            <EventCard
-              title="Pickup Game"
-              sport="Basketball"
-              level="Intermediate"
-              location="Central Park Courts"
-              datetime={new Date().toISOString()}
-              playersText="6/10 players"
-              distanceKm={0.8}
-              hostName="Alex Chen"
-            />
+            <>
+              <EventCard
+                title="Pickup Game"
+                sport="Basketball"
+                level="Intermediate"
+                location="Central Park Courts"
+                datetime={new Date().toISOString()}
+                playersText="6/10 players"
+                distanceKm={0.8}
+                hostName="Alex Chen"
+              />
+              <EventCard
+                title="Sunrise Run Crew"
+                sport="Running"
+                level="All Levels"
+                location="Harborfront Boardwalk"
+                datetime={new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()}
+                playersText="14/25 runners"
+                distanceKm={1.2}
+                hostName="Emily Carter"
+              />
+              <EventCard
+                title="Twilight Tennis Doubles"
+                sport="Tennis"
+                level="Advanced"
+                location="Riverside Tennis Club"
+                datetime={new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString()}
+                playersText="3/4 players"
+                distanceKm={2.5}
+                hostName="Sarah Miller"
+              />
+              <EventCard
+                title="Sunday Futsal League"
+                sport="Soccer"
+                level="Competitive"
+                location="West End Community Gym"
+                datetime={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()}
+                playersText="8/12 players"
+                distanceKm={3.1}
+                hostName="David Nguyen"
+              />
+            </>
           )}
           {events.map((e) => (
             <EventCard

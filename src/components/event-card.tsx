@@ -43,12 +43,7 @@ export function EventCard({
     : undefined;
 
   return (
-    <div className="relative rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5 shadow-sm">
-      {typeof distance !== "undefined" && (
-        <div className="absolute right-4 top-4 text-sm font-semibold text-red-400">
-          {distance}
-        </div>
-      )}
+    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5 shadow-sm">
       <div className="flex items-start gap-3">
         <div className="h-10 w-10 flex-shrink-0 rounded-full bg-neutral-800" />
         <div className="flex-1">
@@ -59,7 +54,11 @@ export function EventCard({
           </p>
           <div className="mt-4 space-y-2 text-neutral-300">
             <p className="flex items-center gap-2">
-              <MapPin className="size-4 opacity-70" /> {location}
+              <MapPin className="size-4 opacity-70" />{" "}
+              <span>
+                {location}
+                {distance ? ` (${distance})` : ""}
+              </span>
             </p>
             {dateDisplay && (
               <p className="flex items-center gap-2">
@@ -75,7 +74,7 @@ export function EventCard({
             <p className="mt-4 text-sm text-neutral-400">by {hostName}</p>
           )}
         </div>
-        <div className="flex flex-col justify-center">
+        <div className="flex min-w-[5.5rem] flex-col items-end gap-2">
           <button
             onClick={onRightActionClick ?? onJoin}
             className={cn(
@@ -90,4 +89,3 @@ export function EventCard({
     </div>
   );
 }
-
