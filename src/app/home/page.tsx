@@ -17,6 +17,7 @@ export default function HomePage() {
   const [isFilterOpen, setIsFilterOpen] = React.useState(false);
   const [selectedSport, setSelectedSport] = React.useState<string>("All");
   const filterRef = React.useRef<HTMLDivElement | null>(null);
+  const [hostedEvents, setHostedEvents] = React.useState<HopOnEvent[]>([]);
 
   const loadData = React.useCallback(async () => {
     try {
@@ -26,11 +27,13 @@ export default function HomePage() {
       ]);
       setEvents(nearby);
       setJoinedEventIds((mine.joined || []).map((event) => event.id));
+      setHostedEvents(mine.hosted || []);
       setErrorMessage(null);
     } catch (error) {
       console.error("Failed to load events", error);
       setEvents([]);
       setJoinedEventIds([]);
+      setHostedEvents([]);
       setErrorMessage("Couldn't load events. Check your connection and try again.");
     }
   }, []);
@@ -118,6 +121,9 @@ export default function HomePage() {
   const noEventsToShow =
     (events.length > 0 && filteredEvents.length === 0) ||
     (events.length === 0 && filteredFallbackEvents.length === 0);
+  const nearbyCount = events.length > 0 ? events.length : FALLBACK_EVENTS.length;
+  const joinedCount = joinedEventIds.length;
+  const hostedCount = hostedEvents.length;
 
   return (
     <WebLayout>
@@ -131,9 +137,9 @@ export default function HomePage() {
         </div>
         <div className="absolute inset-x-0 bottom-4">
           <div className="mx-6 sm:mx-10 grid grid-cols-3 items-start gap-6 rounded-2xl border border-neutral-800 bg-neutral-900/80 p-5 backdrop-blur">
-            <Stat label="Nearby" value="12" />
-            <Stat label="Joined" value="3" />
-            <Stat label="Hosted" value="8" />
+            <Stat label="Nearby" value={nearbyCount.toString()} />
+            <Stat label="Joined" value={joinedCount.toString()} />
+            <Stat label="Hosted" value={hostedCount.toString()} />
           </div>
         </div>
       </div>
