@@ -17,6 +17,7 @@ export type EventCardProps = {
   statusColorClass?: string; // optional top-right color
   rightActionLabel?: string;
   onRightActionClick?: () => void;
+  disabled?: boolean;
 };
 
 export function EventCard({
@@ -31,6 +32,7 @@ export function EventCard({
   onJoin,
   rightActionLabel = "Join",
   onRightActionClick,
+  disabled = false,
 }: EventCardProps) {
   const distance =
     typeof distanceKm === "number" ? `${distanceKm.toFixed(1)} km` : undefined;
@@ -76,10 +78,15 @@ export function EventCard({
         </div>
         <div className="flex min-w-[5.5rem] flex-col items-end gap-2">
           <button
-            onClick={onRightActionClick ?? onJoin}
+            type="button"
+            onClick={disabled ? undefined : onRightActionClick ?? onJoin}
+            disabled={disabled || (!onRightActionClick && !onJoin)}
             className={cn(
               "rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold text-white",
-              "hover:bg-red-400 active:scale-[0.98]"
+              "hover:bg-red-400 active:scale-[0.98]",
+              disabled || (!onRightActionClick && !onJoin)
+                ? "cursor-not-allowed opacity-50"
+                : ""
             )}
           >
             {rightActionLabel}

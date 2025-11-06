@@ -4,13 +4,120 @@ import WebLayout from "@/components/web-layout";
 import { EventCard } from "@/components/event-card";
 import { Api, type HopOnEvent } from "@/lib/api";
 import * as React from "react";
+import { CURRENT_USER } from "@/lib/current-user";
+import { FALLBACK_EVENTS } from "@/lib/fallback-data";
 
 export default function HomePage() {
   const [events, setEvents] = React.useState<HopOnEvent[]>([]);
+  const [joinedEventIds, setJoinedEventIds] = React.useState<number[]>([]);
+  const [pendingAction, setPendingAction] = React.useState<
+    { id: number; type: "join" | "leave" } | null
+  >(null);
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = React.useState(false);
+  const [selectedSport, setSelectedSport] = React.useState<string>("All");
+  const filterRef = React.useRef<HTMLDivElement | null>(null);
+
+  const loadData = React.useCallback(async () => {
+    try {
+      const [nearby, mine] = await Promise.all([
+        Api.nearbyEvents(),
+        Api.myEvents(CURRENT_USER.id),
+      ]);
+      setEvents(nearby);
+      setJoinedEventIds((mine.joined || []).map((event) => event.id));
+      setErrorMessage(null);
+    } catch (error) {
+      console.error("Failed to load events", error);
+      setEvents([]);
+      setJoinedEventIds([]);
+      setErrorMessage("Couldn't load events. Check your connection and try again.");
+    }
+  }, []);
+
+  const availableSports = React.useMemo(() => {
+    const sportsSource =
+      events.length > 0 ? events.map((event) => event.sport) : FALLBACK_EVENTS.map((event) => event.sport);
+    const unique = Array.from(new Set(sportsSource));
+    return ["All", ...unique];
+  }, [events]);
 
   React.useEffect(() => {
-    Api.nearbyEvents().then(setEvents).catch(() => setEvents([]));
-  }, []);
+    if (selectedSport !== "All" && !availableSports.includes(selectedSport)) {
+      setSelectedSport("All");
+    }
+  }, [availableSports, selectedSport]);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!filterRef.current) return;
+      if (!filterRef.current.contains(event.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    }
+    if (isFilterOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isFilterOpen]);
+
+  React.useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  async function handleJoin(eventId: number) {
+    if (pendingAction !== null) {
+      return;
+    }
+    setPendingAction({ id: eventId, type: "join" });
+    try {
+      await Api.joinEvent(eventId, {
+        user_id: CURRENT_USER.id,
+        player_name: CURRENT_USER.username,
+      });
+      await loadData();
+    } catch (error) {
+      console.error("Failed to join event", error);
+      setErrorMessage("Unable to join this event right now. Please try again.");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleLeave(eventId: number) {
+    if (pendingAction !== null) {
+      return;
+    }
+    setPendingAction({ id: eventId, type: "leave" });
+    try {
+      await Api.leaveEvent(eventId, { user_id: CURRENT_USER.id });
+      await loadData();
+    } catch (error) {
+      console.error("Failed to leave event", error);
+      setErrorMessage("Unable to leave this event right now. Please try again.");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  const joinedSet = React.useMemo(() => new Set(joinedEventIds), [joinedEventIds]);
+  const filteredEvents = React.useMemo(() => {
+    if (selectedSport === "All") {
+      return events;
+    }
+    return events.filter((event) => event.sport === selectedSport);
+  }, [events, selectedSport]);
+  const filteredFallbackEvents = React.useMemo(() => {
+    if (selectedSport === "All") {
+      return FALLBACK_EVENTS;
+    }
+    return FALLBACK_EVENTS.filter((event) => event.sport === selectedSport);
+  }, [selectedSport]);
+  const noEventsToShow =
+    (events.length > 0 && filteredEvents.length === 0) ||
+    (events.length === 0 && filteredFallbackEvents.length === 0);
 
   return (
     <WebLayout>
@@ -34,69 +141,97 @@ export default function HomePage() {
       <div className="mt-24">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-2xl font-semibold">Nearby Events</h3>
-          <button className="rounded-xl border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300">
-            Filter
-          </button>
+          <div className="relative" ref={filterRef}>
+            <button
+              type="button"
+              onClick={() => setIsFilterOpen((prev) => !prev)}
+              className="rounded-xl border border-neutral-800 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-700 hover:text-white"
+              aria-haspopup="true"
+              aria-expanded={isFilterOpen}
+            >
+              Filter
+            </button>
+            {isFilterOpen && (
+              <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-neutral-800 bg-neutral-900/95 p-4 text-sm shadow-lg">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-neutral-100">Filters</span>
+                  <button
+                    type="button"
+                    className="text-xs text-neutral-400 hover:text-neutral-200"
+                    onClick={() => setIsFilterOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+                <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  Sport
+                </label>
+                <select
+                  value={selectedSport}
+                  onChange={(event) => setSelectedSport(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 focus:border-red-400 focus:outline-none"
+                >
+                  {availableSports.map((sport) => (
+                    <option key={sport} value={sport}>
+                      {sport}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="mt-3 text-xs font-semibold text-red-400 hover:text-red-300"
+                  onClick={() => setSelectedSport("All")}
+                >
+                  Reset filters
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
+        {errorMessage && (
+          <div className="mb-4 rounded-lg border border-red-500/60 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            {errorMessage}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-4 pb-8 lg:grid-cols-2">
-          {events.length === 0 && (
-            <>
-              <EventCard
-                title="Pickup Game"
-                sport="Basketball"
-                level="Intermediate"
-                location="Central Park Courts"
-                datetime={new Date().toISOString()}
-                playersText="6/10 players"
-                distanceKm={0.8}
-                hostName="Alex Chen"
-              />
-              <EventCard
-                title="Sunrise Run Crew"
-                sport="Running"
-                level="All Levels"
-                location="Harborfront Boardwalk"
-                datetime={new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()}
-                playersText="14/25 runners"
-                distanceKm={1.2}
-                hostName="Emily Carter"
-              />
-              <EventCard
-                title="Twilight Tennis Doubles"
-                sport="Tennis"
-                level="Advanced"
-                location="Riverside Tennis Club"
-                datetime={new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString()}
-                playersText="3/4 players"
-                distanceKm={2.5}
-                hostName="Sarah Miller"
-              />
-              <EventCard
-                title="Sunday Futsal League"
-                sport="Soccer"
-                level="Competitive"
-                location="West End Community Gym"
-                datetime={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()}
-                playersText="8/12 players"
-                distanceKm={3.1}
-                hostName="David Nguyen"
-              />
-            </>
+          {noEventsToShow && (
+            <div className="col-span-full rounded-2xl border border-dashed border-neutral-800 bg-neutral-900/40 px-6 py-8 text-center text-sm text-neutral-400">
+              No events match the selected filters yet. Try adjusting your filters or check back soon.
+            </div>
           )}
-          {events.map((e) => (
-            <EventCard
-              key={e.id}
-              title={e.name}
-              sport={e.sport}
-              level={e.skill_level || undefined}
-              location={e.location}
-              datetime={e.event_date || undefined}
-              playersText={`${e.current_players}/${e.max_players} players`}
-              distanceKm={e.distance_km}
-              hostName={e.host_user_id}
-            />
-          ))}
+          {!noEventsToShow &&
+            (events.length === 0
+              ? filteredFallbackEvents.map((event) => (
+                  <EventCard key={event.id} {...event} />
+                ))
+              : filteredEvents.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    title={event.name}
+                    sport={event.sport}
+                    level={event.skill_level || undefined}
+                    location={event.location}
+                    datetime={event.event_date || undefined}
+                    playersText={`${event.current_players}/${event.max_players} players`}
+                    distanceKm={event.distance_km}
+                    hostName={event.host?.username}
+                    onRightActionClick={
+                      joinedSet.has(event.id)
+                        ? () => handleLeave(event.id)
+                        : () => handleJoin(event.id)
+                    }
+                    rightActionLabel={(() => {
+                      const isPending = pendingAction?.id === event.id;
+                      if (joinedSet.has(event.id)) {
+                        return isPending && pendingAction?.type === "leave" ? "Leaving..." : "Leave";
+                      }
+                      return isPending && pendingAction?.type === "join" ? "Joining..." : "Join";
+                    })()}
+                    disabled={pendingAction?.id === event.id}
+                  />
+                )))}
         </div>
       </div>
     </WebLayout>

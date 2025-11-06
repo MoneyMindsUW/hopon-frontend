@@ -15,6 +15,7 @@ export type HopOnEvent = {
   skill_level?: string | null;
   host_user_id?: number | null;
   distance_km?: number | null;
+  host?: { id: number; username: string } | null;
 };
 
 export type HopOnUser = {
@@ -26,6 +27,7 @@ export type HopOnUser = {
   rating?: number | null;
   location?: string | null;
   sports?: string[] | null;
+  eventsCount?: number | null;
 };
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
@@ -63,5 +65,19 @@ export const Api = {
       body: JSON.stringify({ follower_id: followerId }),
     });
   },
+  async joinEvent(
+    eventId: number,
+    payload: { user_id: number; player_name: string; team?: string }
+  ) {
+    return http<{ message: string; event: HopOnEvent }>(`/events/${eventId}/join`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  async leaveEvent(eventId: number, payload: { user_id: number }) {
+    return http<{ message: string }>(`/events/${eventId}/leave`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
 };
-

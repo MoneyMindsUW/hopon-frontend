@@ -4,6 +4,7 @@ import WebLayout from "@/components/web-layout";
 import { EventCard } from "@/components/event-card";
 import * as React from "react";
 import { Api, type HopOnEvent } from "@/lib/api";
+import { CURRENT_USER } from "@/lib/current-user";
 
 type TabKey = "joined" | "hosted";
 
@@ -11,19 +12,38 @@ export default function EventsPage() {
   const [tab, setTab] = React.useState<TabKey>("joined");
   const [joined, setJoined] = React.useState<HopOnEvent[]>([]);
   const [hosted, setHosted] = React.useState<HopOnEvent[]>([]);
+  const [actionEventId, setActionEventId] = React.useState<number | null>(null);
+
+  const loadMyEvents = React.useCallback(async () => {
+    try {
+      const res = await Api.myEvents(CURRENT_USER.id);
+      setJoined(res.joined || []);
+      setHosted(res.hosted || []);
+    } catch (error) {
+      console.error("Failed to load events", error);
+      setJoined([]);
+      setHosted([]);
+    }
+  }, []);
 
   React.useEffect(() => {
-    // Replace hardcoded 1 with your auth user id when available
-    Api.myEvents(1)
-      .then((res) => {
-        setJoined(res.joined || []);
-        setHosted(res.hosted || []);
-      })
-      .catch(() => {
-        setJoined([]);
-        setHosted([]);
-      });
-  }, []);
+    void loadMyEvents();
+  }, [loadMyEvents]);
+
+  async function handleLeave(eventId: number) {
+    if (actionEventId !== null) {
+      return;
+    }
+    setActionEventId(eventId);
+    try {
+      await Api.leaveEvent(eventId, { user_id: CURRENT_USER.id });
+      await loadMyEvents();
+    } catch (error) {
+      console.error("Failed to leave event", error);
+    } finally {
+      setActionEventId(null);
+    }
+  }
 
   const stats = [
     { label: "This Month", value: "12" },
@@ -44,7 +64,7 @@ export default function EventsPage() {
           }
           onClick={() => setTab("joined")}
         >
-          Joined (3)
+          Joined ({joined.length})
         </button>
         <button
           className={
@@ -54,7 +74,7 @@ export default function EventsPage() {
           }
           onClick={() => setTab("hosted")}
         >
-          Hosted (2)
+          Hosted ({hosted.length})
         </button>
       </div>
 
@@ -88,17 +108,30 @@ export default function EventsPage() {
             />
           </>
         )}
-        {items.map((e) => (
-          <EventCard
-            key={e.id}
-            title={e.name}
-            sport={e.sport}
-            location={e.location}
-            datetime={e.event_date || undefined}
-            playersText={`${e.current_players}/${e.max_players}`}
-            rightActionLabel={tab === "joined" ? "Leave" : "View"}
-          />
-        ))}
+        {items.map((e) => {
+          const isCurrent = actionEventId === e.id;
+          const isJoinedTab = tab === "joined";
+          return (
+            <EventCard
+              key={e.id}
+              title={e.name}
+              sport={e.sport}
+              location={e.location}
+              datetime={e.event_date || undefined}
+              playersText={`${e.current_players}/${e.max_players}`}
+              hostName={e.host?.username}
+              rightActionLabel={
+                isJoinedTab
+                  ? isCurrent
+                    ? "Leaving..."
+                    : "Leave"
+                  : "View"
+              }
+              onRightActionClick={isJoinedTab ? () => handleLeave(e.id) : undefined}
+              disabled={isCurrent || (!isJoinedTab && true)}
+            />
+          );
+        })}
       </div>
     </WebLayout>
   );
