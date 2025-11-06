@@ -54,7 +54,10 @@ export default function SettingsPage() {
     fontSize: "medium",
   });
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = <K extends keyof typeof settings>(
+    field: K,
+    value: (typeof settings)[K]
+  ) => {
     setSettings((prev) => ({
       ...prev,
       [field]: value,

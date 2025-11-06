@@ -12,6 +12,7 @@ export default function CreatePage() {
     event_date: "",
     max_players: 10,
     skill_level: "Intermediate",
+    notes: "",
   });
   const [result, setResult] = React.useState<string | null>(null);
 
@@ -25,11 +26,14 @@ export default function CreatePage() {
       const res = await Api.createEvent({
         ...form,
         event_date: form.event_date ? new Date(form.event_date).toISOString() : undefined,
+        notes: form.notes.trim() ? form.notes.trim() : undefined,
       });
       setResult(`Created: ${res.event.name}`);
-      setForm({ ...form, name: "", location: "", event_date: "" });
-    } catch (err: any) {
-      setResult(err.message ?? "Failed to create event");
+      setForm({ ...form, name: "", location: "", event_date: "", notes: "" });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create event";
+      setResult(message);
     }
   }
 
@@ -96,9 +100,18 @@ export default function CreatePage() {
             ))}
           </select>
         </Field>
+        <Field label="Description (optional)">
+          <textarea
+            value={form.notes}
+            onChange={(e) => update("notes", e.target.value)}
+            className="w-full rounded-xl border border-neutral-800 bg-neutral-900/60 px-4 py-3"
+            rows={4}
+            placeholder="Share extra details, gear requirements, or meetup instructions."
+          />
+        </Field>
         <button
           type="submit"
-          className="w-full rounded-xl bg-red-500 px-4 py-3 font-semibold text-white"
+          className="w-full rounded-xl bg-red-500 px-4 py-3 font-semibold text-white hover:bg-red-400"
         >
           Create
         </button>

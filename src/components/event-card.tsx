@@ -13,10 +13,12 @@ export type EventCardProps = {
   playersText: string; // e.g. "6/10 players"
   distanceKm?: number | null;
   hostName?: string;
+  description?: string | null;
   onJoin?: () => void;
   statusColorClass?: string; // optional top-right color
   rightActionLabel?: string;
   onRightActionClick?: () => void;
+  disabled?: boolean;
 };
 
 export function EventCard({
@@ -28,9 +30,11 @@ export function EventCard({
   playersText,
   distanceKm,
   hostName,
+  description,
   onJoin,
   rightActionLabel = "Join",
   onRightActionClick,
+  disabled = false,
 }: EventCardProps) {
   const distance =
     typeof distanceKm === "number" ? `${distanceKm.toFixed(1)} km` : undefined;
@@ -43,12 +47,7 @@ export function EventCard({
     : undefined;
 
   return (
-    <div className="relative rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5 shadow-sm">
-      {typeof distance !== "undefined" && (
-        <div className="absolute right-4 top-4 text-sm font-semibold text-red-400">
-          {distance}
-        </div>
-      )}
+    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5 shadow-sm">
       <div className="flex items-start gap-3">
         <div className="h-10 w-10 flex-shrink-0 rounded-full bg-neutral-800" />
         <div className="flex-1">
@@ -57,9 +56,22 @@ export function EventCard({
             {sport}
             {level ? <span> • {level}</span> : null}
           </p>
+          {description && (
+            <p className="mt-2 text-sm text-neutral-400">
+              {(() => {
+                const words = description.trim().split(/\s+/);
+                const preview = words.slice(0, 20).join(" ");
+                return words.length > 20 ? `${preview}…` : preview;
+              })()}
+            </p>
+          )}
           <div className="mt-4 space-y-2 text-neutral-300">
             <p className="flex items-center gap-2">
-              <MapPin className="size-4 opacity-70" /> {location}
+              <MapPin className="size-4 opacity-70" />{" "}
+              <span>
+                {location}
+                {distance ? ` (${distance})` : ""}
+              </span>
             </p>
             {dateDisplay && (
               <p className="flex items-center gap-2">
@@ -75,12 +87,17 @@ export function EventCard({
             <p className="mt-4 text-sm text-neutral-400">by {hostName}</p>
           )}
         </div>
-        <div className="flex flex-col justify-center">
+        <div className="flex min-w-[5.5rem] flex-col items-end gap-2">
           <button
-            onClick={onRightActionClick ?? onJoin}
+            type="button"
+            onClick={disabled ? undefined : onRightActionClick ?? onJoin}
+            disabled={disabled || (!onRightActionClick && !onJoin)}
             className={cn(
               "rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold text-white",
-              "hover:bg-red-400 active:scale-[0.98]"
+              "hover:bg-red-400 active:scale-[0.98]",
+              disabled || (!onRightActionClick && !onJoin)
+                ? "cursor-not-allowed opacity-50"
+                : ""
             )}
           >
             {rightActionLabel}
@@ -90,4 +107,3 @@ export function EventCard({
     </div>
   );
 }
-
